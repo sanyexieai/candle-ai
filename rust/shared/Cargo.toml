@@ -1,0 +1,8 @@
+[package]
+name = "shared"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+candle-core = "0.4"
+candle-nn  = "0.4"

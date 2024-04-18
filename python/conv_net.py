@@ -4,13 +4,28 @@ import torch.nn as nn
 class Net(nn.Module):
     def __init__(self):
         super(Net, self).__init__()
-        self.fc1 = nn.Linear(28*28, 128)
-        self.fc2 = nn.Linear(128, 64)
-        self.fc3 = nn.Linear(64, 10)  # MNIST数据集有10个类别
+        self.conv = nn.Sequential(
+        #batch*1*28*28
+        nn.Conv2d(1, 4, 3, padding=(1, 1)),
+        nn.MaxPool2d(2, 2),
+        nn.BatchNorm2d(4),
+        nn.ReLU(),
+        #batch*4*14*14
+        nn.Conv2d(4, 8, 3, padding=(1, 1)),
+        nn.MaxPool2d(2, 2),
+        nn.BatchNorm2d(8),
+        nn.ReLU(),
+        #batch*8*7*7
+        nn.Conv2d(8, 16, 3, padding=(1, 1)),
+        nn.MaxPool2d(2, 2),
+        nn.BatchNorm2d(16),
+        nn.ReLU(),
+        #batch*16*3*3
+        )
+        self.fc = nn.Linear(16*3*3, 10)
 
     def forward(self, x):
-        x = torch.flatten(x, 1)
-        x = torch.relu(self.fc1(x))
-        x = torch.relu(self.fc2(x))
-        x = self.fc3(x)
+        x = self.conv(x)
+        x = x.view(-1, 16*3*3)
+        x = self.fc(x)
         return x

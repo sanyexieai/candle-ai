@@ -1,0 +1,34 @@
+[package]
+name = "candle-wasm-example-bert"
+version="0.1.0"
+edition = "2021"
+description = "demo of using candle with wasm"
+repository = "https://github.com/sanyexieai/candle-roberta"
+categories = ["science"]
+license = "MIT"
+
+[dependencies]
+candle-core = "0.6"
+candle-nn  = "0.6"
+candle-transformers = "0.6"
+num-traits = { version = "0.2" }
+tokenizers = { version = "0.15", default-features = false , features = ["unstable_wasm"] }
+
+# App crates.
+anyhow = "1.0"
+byteorder = "1.5"
+image = "0.25"
+log = "0.4"
+rand = "0.8"
+serde = "1.0"
+serde_json = "1.0"
+safetensors = "0.4"
+
+# Wasm specific crates.
+console_error_panic_hook = "0.1"
+getrandom = { version = "0.2", features = ["js"] }
+gloo = "0.11"
+js-sys = "0.3"
+wasm-bindgen = "0.2"
+serde-wasm-bindgen = "0.6"
+shared = { path = "../shared" }

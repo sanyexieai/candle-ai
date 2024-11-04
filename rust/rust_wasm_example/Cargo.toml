@@ -8,11 +8,11 @@ categories = ["science"]
 license = "MIT"
 
 [dependencies]
-candle-core = "0.6"
-candle-nn  = "0.6"
-candle-transformers = "0.6"
+candle-core = "0.7"
+candle-nn  = "0.7"
+candle-transformers = "0.7"
 num-traits = { version = "0.2" }
-tokenizers = { version = "0.15", default-features = false , features = ["unstable_wasm"] }
+tokenizers = { version = "0.20", default-features = false , features = ["unstable_wasm"] }
 
 # App crates.
 anyhow = "1.0"

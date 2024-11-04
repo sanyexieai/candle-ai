@@ -4,7 +4,7 @@ version = "0.1.1"
 edition = "2021"
 
 [dependencies]
-candle-core = "0.6"
-candle-nn  = "0.6"
-candle-transformers = "0.6"
+candle-core = "0.7"
+candle-nn  = "0.7"
+candle-transformers = "0.7"
 image = "0.25.2"

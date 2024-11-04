@@ -457,7 +457,6 @@ pub fn main() -> anyhow::Result<()> {
                 if path.is_file() && (path.extension().map_or(false, |e| e == "png" || e == "jpg")) {
                     Some(path.to_string_lossy().to_string())
                 } else {
-                    print!("{} 不是图片", path.to_string_lossy());
                     None
                 }
             })

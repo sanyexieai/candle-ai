@@ -378,9 +378,12 @@ pub fn run<T: Task>(args: Args) -> anyhow::Result<()> {
         Which::L => Multiples::l(),
         Which::X => Multiples::x(),
     };
-    let model = args.model()?;
-    let vb = unsafe { VarBuilder::from_mmaped_safetensors(&[model], DType::F32, &device)? };
-    let model = T::load(vb, multiples)?;
+    // let model: std::path::PathBuf = args.model()?;
+    // let model: std::path::PathBuf = std::path::PathBuf::from("./yolov8s.safetensors");
+    // let vb = unsafe { VarBuilder::from_mmaped_safetensors(&[model], DType::F32, &device)? };
+    // let model = T::load(vb, multiples)?;
+    let model: std::path::PathBuf = std::path::PathBuf::from("./yolov8s.onnx");
+    let model = candle_onnx::read_file(model)?;
     println!("model loaded");
     for image_name in args.images.iter() {
         println!("processing {image_name}");

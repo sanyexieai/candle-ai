@@ -43,6 +43,5 @@ cargo run --release
 ```
 3. 编译为 WebAssembly：
 ```
-cargo build --target wasm32-unknown-unknown --release
-wasm-bindgen ../target/wasm32-unknown-unknown/release/m.wasm --out-dir build --target web
+wasm-pack build --target web
 ```

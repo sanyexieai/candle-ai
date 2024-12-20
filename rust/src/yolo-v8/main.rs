@@ -382,9 +382,7 @@ pub fn run<T: Task>(args: Args) -> anyhow::Result<()> {
     // let model: std::path::PathBuf = std::path::PathBuf::from("./yolov8s.safetensors");
     // let vb = unsafe { VarBuilder::from_mmaped_safetensors(&[model], DType::F32, &device)? };
     // let model = T::load(vb, multiples)?;
-    let model: std::path::PathBuf = std::path::PathBuf::from("./yolov8s.onnx");
-    let model = candle_onnx::read_file(model)?;
-    println!("model loaded");
+    // println!("model loaded");
     for image_name in args.images.iter() {
         println!("processing {image_name}");
         let mut image_name = std::path::PathBuf::from(image_name);
@@ -417,21 +415,34 @@ pub fn run<T: Task>(args: Args) -> anyhow::Result<()> {
             )?
             .permute((2, 0, 1))?
         };
-        let image_t = (image_t.unsqueeze(0)?.to_dtype(DType::F32)? * (1. / 255.))?;
-        let predictions = model.forward(&image_t)?.squeeze(0)?;
-        println!("generated predictions {predictions:?}");
-        let image_t = T::report(
-            &predictions,
-            original_image,
-            width,
-            height,
-            args.confidence_threshold,
-            args.nms_threshold,
-            args.legend_size,
-        )?;
-        image_name.set_extension("pp.jpg");
-        println!("writing {image_name:?}");
-        image_t.save(image_name)?
+
+
+        // let model: std::path::PathBuf = std::path::PathBuf::from("yolov8s.onnx");
+        // println!("model loaded");
+        let model = candle_onnx::read_file(r"D:\code\rust\candle-ai\yolov8s.onnx")?;
+        println!("model loaded");
+        let graph = model.graph.as_ref().unwrap();
+        let mut inputs = std::collections::HashMap::new();
+        inputs.insert(graph.input[0].name.to_string(), image_t.unsqueeze(0)?);
+        let mut outputs = candle_onnx::simple_eval(&model, inputs)?;
+        let output = outputs.remove(&graph.output[0].name).unwrap();
+        print!("{output}");
+
+        // let image_t = (image_t.unsqueeze(0)?.to_dtype(DType::F32)? * (1. / 255.))?;
+        // let predictions = model.forward(&image_t)?.squeeze(0)?;
+        // println!("generated predictions {predictions:?}");
+        // let image_t = T::report(
+        //     &predictions,
+        //     original_image,
+        //     width,
+        //     height,
+        //     args.confidence_threshold,
+        //     args.nms_threshold,
+        //     args.legend_size,
+        // )?;
+        // image_name.set_extension("pp.jpg");
+        // println!("writing {image_name:?}");
+        // image_t.save(image_name)?
     }
 
     Ok(())

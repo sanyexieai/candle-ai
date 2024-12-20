@@ -55,5 +55,4 @@ wasm-bindgen ../target/wasm32-unknown-unknown/release/m.wasm --out-dir build --t
 ```
 ## 未来工作
 - 完善 Rust 端的训练部分。
-- 修复 Python 和 Rust 版本的预测结果不一致问题。
 - 优化 WASM 版本的性能，提升 Web 端的推理速度

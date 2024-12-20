@@ -1,34 +1,73 @@
-import init, { ConvNetModel } from './build/m.js';
+import init, { ImagePredictor } from './pkg/rust_wasm_example.js';
 
-async function loadAndPredict() {
-    const weightsInput = document.getElementById('weights-input');
-    const imageInput = document.getElementById('image-input');
-    const resultDisplay = document.getElementById('prediction-result');
+let predictor = null;
 
-    if (weightsInput.files.length === 0 || imageInput.files.length === 0) {
-        resultDisplay.textContent = 'Please select both a weights file and an image file.';
+async function loadModel(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    try {
+        await init();
+        const arrayBuffer = await file.arrayBuffer();
+        const weights = new Uint8Array(arrayBuffer);
+        predictor = new ImagePredictor(weights);
+        
+        // 启用图片选择
+        document.getElementById('image-input').disabled = false;
+        document.getElementById('model-input').disabled = true;
+        
+        document.getElementById('prediction-text').textContent = '模型加载成功，请选择图片';
+    } catch (error) {
+        console.error('加载模型失败:', error);
+        document.getElementById('prediction-text').textContent = '加载模型失败: ' + error.message;
+    }
+}
+
+async function handleImageUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const preview = document.getElementById('preview');
+    preview.src = URL.createObjectURL(file);
+    preview.style.display = 'block';
+    
+    document.getElementById('predict-btn').disabled = false;
+}
+
+async function predictImage() {
+    if (!predictor) {
+        alert('请先加载模型');
         return;
     }
 
-    const weightsFile = weightsInput.files[0];
-    const imageFile = imageInput.files[0];
+    const file = document.getElementById('image-input').files[0];
+    if (!file) return;
 
-    // Initialize the WebAssembly module
-    await init();
+    const loading = document.getElementById('loading');
+    const predictBtn = document.getElementById('predict-btn');
+    
+    loading.style.display = 'block';
+    predictBtn.disabled = true;
 
-    // Load weights
-    const weightsArrayBuffer = await weightsFile.arrayBuffer();
-    const model = new ConvNetModel(new Uint8Array(weightsArrayBuffer));
-
-    // Load and predict image
-    const imageArrayBuffer = await imageFile.arrayBuffer();
-    const prediction = await model.predict_image(new Uint8Array(imageArrayBuffer), 28, 28);
-    resultDisplay.textContent = 'Prediction: ' + prediction;
+    try {
+        const arrayBuffer = await file.arrayBuffer();
+        const uint8Array = new Uint8Array(arrayBuffer);
+        
+        const result = await predictor.predict(uint8Array);
+        const [prediction, timing] = result.split('\n');
+        
+        document.getElementById('prediction-text').textContent = prediction;
+        document.getElementById('timing').textContent = timing;
+    } catch (error) {
+        console.error('预测出错:', error);
+        document.getElementById('prediction-text').textContent = '预测失败: ' + error.message;
+    } finally {
+        loading.style.display = 'none';
+        predictBtn.disabled = false;
+    }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  // Ensure the page is fully loaded before attaching the event handler
-  document.querySelector('button').addEventListener('click', loadAndPredict);
-});
-
-// Ensure wasm-pack
+// 初始化事件监听
+document.getElementById('model-input').addEventListener('change', loadModel);
+document.getElementById('image-input').addEventListener('change', handleImageUpload);
+document.getElementById('predict-btn').addEventListener('click', predictImage);

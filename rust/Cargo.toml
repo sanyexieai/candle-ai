@@ -23,23 +23,23 @@ name = "yolo"
 path = "src/yolo-v8/main.rs"
 
 [dependencies]
-candle-core = "0.7"
-candle-nn  = "0.7"
-candle-datasets = "0.7"
-candle-transformers = "0.7"
-candle-onnx = "0.7"
-clap = { version = "4.5.20", features = ["derive"] }
+candle-core = "0.8"
+candle-nn  = "0.8"
+candle-datasets = "0.8"
+candle-transformers = "0.8"
+candle-onnx = "0.8"
+clap = { version = "4.5", features = ["derive"] }
 rand = "0.8"
-anyhow = { version = "1.0.92", features = ["backtrace"] }
-ureq = { version = "2.10.1", features = ["proxy-from-env"] }
-image ={ version = "0.25.4"}
-tract-core = "0.21.7"
-tract-onnx = "0.21.7"
+anyhow = { version = "1.0", features = ["backtrace"] }
+ureq = { version = "2.12", features = ["proxy-from-env"] }
+image ={ version = "0.25"}
+tract-core = "0.21"
+tract-onnx = "0.21"
 ndarray = "0.16" 
 shared = { path = "./shared" }
 ab_glyph = "0.2.23"
 imageproc = { version = "0.25", default-features = false }
-tracing = "0.1.40"
+tracing = "0.1"
 tracing-chrome = "0.7.2"
-tracing-subscriber = "0.3.18"
+tracing-subscriber = "0.3"
 hf-hub = {path = "../../hf-hub"}

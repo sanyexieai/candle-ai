@@ -4,6 +4,9 @@ use candle_nn::VarBuilder;
 use shared::{model::Model, number_model::ConvNet};
 use web_sys::Performance;
 
+const MEAN: f32 = 0.1307;
+const STD: f32 = 0.3081;
+
 #[wasm_bindgen]
 pub struct ImagePredictor {
     model: ConvNet,
@@ -35,15 +38,26 @@ impl ImagePredictor {
             .resize_exact(
                 WIDTH as u32,
                 HEIGHT as u32,
-                image::imageops::FilterType::CatmullRom,
+                image::imageops::FilterType::Nearest,
             );
 
-        let data = image.to_luma8().into_raw();
+        // 转换像素值到0-1范围
+        let data: Vec<f32> = image.to_luma8()
+            .into_raw()
+            .into_iter()
+            .map(|x| x as f32 / 255.0)
+            .collect();
         
         let mut image_t = Tensor::from_vec(data, (HEIGHT, WIDTH), &self.device)?;
         image_t = image_t.unsqueeze(0)?;
         image_t = image_t.unsqueeze(0)?;
-        let image_t = image_t.to_dtype(DType::F32)?;
+        
+        // 添加归一化处理
+        let mean = Tensor::new(&[MEAN], &self.device)?;
+        let std = Tensor::new(&[STD], &self.device)?;
+        let mean = mean.broadcast_as(image_t.shape())?;
+        let std = std.broadcast_as(image_t.shape())?;
+        let image_t = ((image_t - mean)? / std)?;
 
         let predictions = self.model.forward(&image_t, false)?;
         let pred = predictions

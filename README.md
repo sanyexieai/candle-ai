@@ -53,6 +53,3 @@ cargo run --release
 cargo build --target wasm32-unknown-unknown --release
 wasm-bindgen ../target/wasm32-unknown-unknown/release/m.wasm --out-dir build --target web
 ```
-## 未来工作
-- 完善 Rust 端的训练部分。
-- 优化 WASM 版本的性能，提升 Web 端的推理速度

@@ -4,7 +4,6 @@ use candle_nn::{VarBuilder};
 use candle_core::Tensor;
 use shared::{model::Model, number_model::ConvNet};
 use std::path::PathBuf;
-use image::imageops;
 use std::time::Instant;
 
 // 定义均值和标准差

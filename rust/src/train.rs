@@ -167,7 +167,7 @@ struct Args {
     #[arg(long, default_value_t = 5)]
     epochs: usize,
 
-    #[arg(long)]
+    #[arg(long,default_value = r"best_model.safetensors")]
     save: Option<String>,
 
     #[arg(long)]

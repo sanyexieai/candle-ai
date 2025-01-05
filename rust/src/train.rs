@@ -50,6 +50,13 @@ fn training_loop_cnn(
     const BSIZE: usize = 64;
 
     let dev = candle_core::Device::cuda_if_available(0)?;
+    
+    // 添加设备信息打印
+    println!("Training on device: {}", match dev {
+        Device::Cuda(_) => "CUDA GPU",
+        Device::Cpu => "CPU",
+        _ => "Unknown device"
+    });
 
     // 预处理数据
     let train_labels = m.train_labels.to_dtype(DType::U32)?.to_device(&dev)?;
@@ -173,7 +180,7 @@ struct Args {
     #[arg(long)]
     load: Option<String>,
 
-    #[arg(long, default_value = r"D:\code\rust\candle-ai\data\MNIST\raw\")]
+    #[arg(long, default_value = r"E:\code\rust\candle-ai\data\MNIST\raw\")]
     local_mnist: Option<String>,
 
     #[arg(long, default_value_t = 5)]

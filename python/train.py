@@ -19,7 +19,12 @@ def train(model, device, train_loader, optimizer, epoch):
             print(f'Train Epoch: {epoch} [{batch_idx * len(data)}/{len(train_loader.dataset)} ({100. * batch_idx / len(train_loader):.0f}%)]\tLoss: {loss.item():.6f}')
             
 def main():
+    # 检查CUDA是否可用，并打印设备信息
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Using device: {device}")
+    if torch.cuda.is_available():
+        print(f"Current CUDA device: {torch.cuda.current_device()}")
+        print(f"CUDA device name: {torch.cuda.get_device_name()}")
 
     # 数据加载和预处理
     transform = transforms.Compose([

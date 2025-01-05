@@ -23,11 +23,10 @@ name = "yolo"
 path = "src/yolo-v8/main.rs"
 
 [dependencies]
-candle-core = "0.8"
-candle-nn  = "0.8"
-candle-datasets = "0.8"
-candle-transformers = "0.8"
-candle-onnx = "0.8"
+candle-core = { version = "0.8"}
+candle-nn = { version = "0.8"}
+candle-datasets = { version = "0.8"}
+candle-transformers = { version = "0.8"}
 clap = { version = "4.5", features = ["derive"] }
 rand = "0.8"
 anyhow = { version = "1.0", features = ["backtrace"] }
@@ -42,4 +41,4 @@ imageproc = { version = "0.25", default-features = false }
 tracing = "0.1"
 tracing-chrome = "0.7.2"
 tracing-subscriber = "0.3"
-hf-hub = {path = "../../hf-hub"}
+cudarc = { version = "0.12.1", features = ["std", "cublas", "cublaslt", "curand", "driver", "nvrtc", "f16", "cuda-version-from-build-system", "dynamic-linking"], default-features=false }

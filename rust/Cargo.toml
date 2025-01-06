@@ -1,4 +1,4 @@
-workspace = { members = ["rust_wasm_example"] }
+workspace = { members = ["rust_wasm_mnist"] }
 [package]
 name = "candle-ai"
 version = "0.1.0"
@@ -8,15 +8,12 @@ edition = "2021"
 
 [[bin]]
 name = "train"
-path = "src/train.rs"
+path = "src/train_mnist.rs"
 
 [[bin]]
 name = "predict"
-path = "src/predict.rs"
+path = "src/predict_mnist.rs"
 
-[[bin]]
-name = "predictcode"
-path = "src/predictcode.rs"
 
 [[bin]]
 name = "yolo"
@@ -41,4 +38,5 @@ imageproc = { version = "0.25", default-features = false }
 tracing = "0.1"
 tracing-chrome = "0.7.2"
 tracing-subscriber = "0.3"
-cudarc = { version = "0.12.1", features = ["std", "cublas", "cublaslt", "curand", "driver", "nvrtc", "f16", "cuda-version-from-build-system", "dynamic-linking"], default-features=false }
+hf-hub = "0.4"
+# cudarc = { version = "0.12.1", features = ["std", "cublas", "cublaslt", "curand", "driver", "nvrtc", "f16", "cuda-version-from-build-system", "dynamic-linking"], default-features=false }

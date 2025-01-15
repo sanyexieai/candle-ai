@@ -103,8 +103,7 @@ class ComputeLoss:
         loss = lbox + lobj + lcls
         
         # 返回损失和损失项
-        loss_items = torch.stack((lbox.detach(), lobj.detach(), lcls.detach()))
-        return loss * 3, loss_items
+        return loss * 3, torch.tensor([lbox.item(), lobj.item(), lcls.item()], device=self.device)
         
     def build_targets(self, p, targets):
         """构建训练目标

@@ -78,7 +78,7 @@ def train(hyp, opt):
         model.train()
         pbar = tqdm(enumerate(train_loader), total=len(train_loader))
         
-        mloss = torch.zeros(4, device=device)  # mean losses
+        mloss = torch.zeros(3, device=device)  # mean losses
         for i, (imgs, targets, paths, _) in pbar:
             imgs = imgs.to(device, non_blocking=True).float() / 255.0
             targets = targets.to(device)
@@ -99,13 +99,13 @@ def train(hyp, opt):
             # 更新进度条
             mloss = (mloss * i + loss_items) / (i + 1)
             mem = f'{torch.cuda.memory_reserved() / 1E9 if torch.cuda.is_available() else 0:.3g}G'
+            s = ''
+            for j, loss_val in enumerate(['box', 'obj', 'cls']):
+                s += f'{loss_val}: {mloss[j].item():.4f} - '
             pbar.set_description(
                 f'Epoch {epoch}/{opt.epochs} - '
                 f'mem {mem} - '
-                f'loss: {mloss[0]:.4f} - '
-                f'box: {mloss[1]:.4f} - '
-                f'obj: {mloss[2]:.4f} - '
-                f'cls: {mloss[3]:.4f}'
+                f'{s[:-3]}'  # 移除最后的 ' - '
             )
             
         # 更新学习率

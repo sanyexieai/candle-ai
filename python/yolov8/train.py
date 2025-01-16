@@ -15,7 +15,8 @@ from pathlib import Path
 def train(hyp, opt):
     """训练函数"""
     logger = logging.getLogger(__name__)
-    save_dir = increment_path(Path(opt.project) / opt.name, exist_ok=opt.exist_ok)
+    save_dir = Path(increment_path(Path(opt.project) / opt.name, exist_ok=opt.exist_ok))
+    save_dir.mkdir(parents=True, exist_ok=True)  # 创建保存目录
     
     # 配置设备
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')

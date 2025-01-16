@@ -30133,3 +30133,4 @@ data/coco/train2017/000000048753.jpg
 data/coco/train2017/000000048756.jpg
 /data
 data
+python/yolov8/runs/train/exp2/epoch_0.pt

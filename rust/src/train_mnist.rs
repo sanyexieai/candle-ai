@@ -49,24 +49,37 @@ fn training_loop_cnn(
 ) -> anyhow::Result<()> {
     const BSIZE: usize = 64;
 
-    let dev = candle_core::Device::cuda_if_available(0)?;
-    
-    // 添加设备信息打印
-    println!("Training on device: {}", match dev {
-        Device::Cuda(_) => "CUDA GPU",
-        Device::Cpu => "CPU",
-        _ => "Unknown device"
-    });
+    // 检查CUDA是否可用
+    let dev = match Device::cuda_if_available(0) {
+        Ok(cuda_dev) => {
+            println!("Training on CUDA GPU");
+            cuda_dev
+        }
+        Err(e) => {
+            println!("WARNING: CUDA not available ({}), falling back to CPU", e);
+            Device::Cpu
+        }
+    };
 
-    // 预处理数据
+    // 打印CUDA设备信息
+    if let Device::Cuda(_) = dev {
+        println!("Successfully initialized CUDA device");
+    }
+
+    // 预处理数据并移动到设备
+    println!("Preprocessing and moving data to device...");
     let train_labels = m.train_labels.to_dtype(DType::U32)?.to_device(&dev)?;
     let train_images = preprocess_data(&m.train_images)?.to_device(&dev)?;
     let test_labels = m.test_labels.to_dtype(DType::U32)?.to_device(&dev)?;
     let test_images = preprocess_data(&m.test_images)?.to_device(&dev)?;
+    println!("Data successfully moved to device");
 
+    // 初始化模型
+    println!("Initializing model...");
     let mut varmap = VarMap::new();
     let vs = VarBuilder::from_varmap(&varmap, DType::F32, &dev);
     let model = ConvNet::load(vs.clone())?;
+    println!("Model initialized successfully");
 
     if let Some(load) = &args.load {
         println!("Loading weights from {load}");
@@ -171,7 +184,7 @@ struct Args {
     #[arg(long)]
     learning_rate: Option<f64>,
 
-    #[arg(long, default_value_t = 5)]
+    #[arg(long, default_value_t = 50)]
     epochs: usize,
 
     #[arg(long,default_value = r"best_model.safetensors")]
@@ -180,7 +193,7 @@ struct Args {
     #[arg(long)]
     load: Option<String>,
 
-    #[arg(long, default_value = r"E:\code\rust\candle-ai\data\MNIST\raw\")]
+    #[arg(long, default_value = "data/MNIST/raw")]
     local_mnist: Option<String>,
 
     #[arg(long, default_value_t = 5)]
@@ -188,14 +201,40 @@ struct Args {
 }
 
 pub fn main() -> anyhow::Result<()> {
+    // 简化CUDA检查
+    println!("Checking CUDA availability...");
+    match Device::cuda_if_available(0) {
+        Ok(_) => println!("CUDA is available"),
+        Err(e) => println!("CUDA not available: {}", e),
+    }
+
     let args = Args::parse();
 
     let m = if let Some(directory) = args.local_mnist {
-        candle_datasets::vision::mnist::load_dir(directory)?
+        println!("Attempting to load MNIST dataset from: {}", directory);
+        
+        // 创建目录如果不存在
+        if let Err(e) = std::fs::create_dir_all(&directory) {
+            println!("Warning: Failed to create directory {}: {}", directory, e);
+        }
+        
+        match candle_datasets::vision::mnist::load_dir(&directory) {
+            Ok(dataset) => {
+                println!("Successfully loaded MNIST dataset from local directory");
+                dataset
+            }
+            Err(e) => {
+                println!("Failed to load from local directory: {}. Attempting to download...", e);
+                // 如果本地加载失败，尝试下载
+                candle_datasets::vision::mnist::load()?
+            }
+        }
     } else {
+        println!("No local directory specified, downloading MNIST dataset...");
         candle_datasets::vision::mnist::load()?
     };
 
+    println!("Successfully loaded dataset with following shapes:");
     println!("train-images: {:?}", m.train_images.shape());
     println!("train-labels: {:?}", m.train_labels.shape());
     println!("test-images: {:?}", m.test_images.shape());

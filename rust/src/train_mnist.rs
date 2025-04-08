@@ -80,7 +80,29 @@ fn training_loop_cnn(
     let test_images = preprocess_data(&m.test_images)?.to_device(&dev)?;
     println!("Data successfully moved to device");
 
-    println!("Initializing model...");
+    // 分析数据分布
+    println!("\nAnalyzing data distribution:");
+    let train_mean = train_images.mean_all()?.to_scalar::<f32>()?;
+    let train_std = {
+        let mean_tensor = Tensor::new(train_mean, &dev)?;
+        let diff = (train_images.clone() - mean_tensor)?;
+        let squared = diff.sqr()?;
+        let mean_squared = squared.mean_all()?.to_scalar::<f32>()?;
+        mean_squared.sqrt()
+    };
+    println!("Training data - Mean: {:.4}, Std: {:.4}", train_mean, train_std);
+    
+    let test_mean = test_images.mean_all()?.to_scalar::<f32>()?;
+    let test_std = {
+        let mean_tensor = Tensor::new(test_mean, &dev)?;
+        let diff = (test_images.clone() - mean_tensor)?;
+        let squared = diff.sqr()?;
+        let mean_squared = squared.mean_all()?.to_scalar::<f32>()?;
+        mean_squared.sqrt()
+    };
+    println!("Test data - Mean: {:.4}, Std: {:.4}", test_mean, test_std);
+
+    println!("\nInitializing model...");
     let mut varmap = VarMap::new();
     let vs = VarBuilder::from_varmap(&varmap, DType::F32, &dev);
     let model = ConvNet::load(vs.clone())?;
@@ -95,7 +117,9 @@ fn training_loop_cnn(
     let adamw_params = candle_nn::ParamsAdamW {
         lr: args.learning_rate,
         weight_decay: 0.01, // 增加权重衰减
-        ..Default::default()
+        beta1: 0.9,
+        beta2: 0.999,
+        eps: 1e-8,
     };
     let mut opt = candle_nn::AdamW::new(varmap.all_vars(), adamw_params)?;
 
@@ -105,12 +129,22 @@ fn training_loop_cnn(
     let mut best_accuracy = 0f32;
     let mut patience_counter = 0;
     let mut best_model_path = String::from("best_model.safetensors");
+    let mut learning_rates = Vec::new();
+    let mut train_losses = Vec::new();
+    let mut test_accuracies = Vec::new();
+
+    println!("\nStarting training with parameters:");
+    println!("Batch size: {}", BSIZE);
+    println!("Initial learning rate: {}", args.learning_rate);
+    println!("Epochs: {}", args.epochs);
+    println!("Patience: {}", args.patience);
 
     // 训练循环
     for epoch in 1..=args.epochs {
         let mut sum_loss = 0f32;
         let mut correct_train = 0usize;
         let mut total_train = 0usize;
+        let mut batch_losses = Vec::new();
         
         // 打乱数据
         let (shuffled_images, shuffled_labels) = shuffle_data(&train_images, &train_labels)?;
@@ -123,6 +157,9 @@ fn training_loop_cnn(
             let train_images_batch = shuffled_images.narrow(0, start_idx, actual_bsize)?;
             let train_labels_batch = shuffled_labels.narrow(0, start_idx, actual_bsize)?;
 
+            // 应用数据增强
+            let train_images_batch = augment_batch(&train_images_batch)?;
+
             let logits = model.forward(&train_images_batch, true)?;
             let log_sm = ops::log_softmax(&logits, D::Minus1)?;
             let loss = loss::nll(&log_sm, &train_labels_batch)?;
@@ -134,22 +171,27 @@ fn training_loop_cnn(
             total_train += actual_bsize;
 
             opt.backward_step(&loss)?;
-            sum_loss += loss.to_vec0::<f32>()?;
+            let batch_loss = loss.to_vec0::<f32>()?;
+            sum_loss += batch_loss;
+            batch_losses.push(batch_loss);
 
             if batch_idx % 50 == 0 {
+                let current_lr = opt.learning_rate();
                 println!(
-                    "Epoch: {} [{}/{} ({:.0}%)]\tLoss: {:.6}",
+                    "Epoch: {} [{}/{} ({:.0}%)]\tLoss: {:.6}\tLR: {:.6}",
                     epoch,
                     start_idx + actual_bsize,
                     total_samples,
                     100. * (start_idx + actual_bsize) as f32 / total_samples as f32,
-                    loss.to_vec0::<f32>()?
+                    batch_loss,
+                    current_lr
                 );
             }
         }
 
         let avg_loss = sum_loss / n_batches as f32;
         let train_accuracy = correct_train as f32 / total_train as f32;
+        train_losses.push(avg_loss);
 
         // 评估测试集
         let test_logits = model.forward(&test_images, false)?;
@@ -161,18 +203,23 @@ fn training_loop_cnn(
             .to_scalar::<f32>()?;
 
         let test_accuracy = sum_ok / test_labels.dims1()? as f32;
+        test_accuracies.push(test_accuracy);
 
-        println!(
-            "Epoch {:4} | Train Loss: {:8.5} | Train Acc: {:5.2}% | Test Acc: {:5.2}% | LR: {:.6}",
-            epoch,
+        // 计算当前学习率
+        let current_lr = get_learning_rate(args.learning_rate, epoch, args.epochs);
+        learning_rates.push(current_lr);
+        opt.set_learning_rate(current_lr);
+
+        // 打印详细的训练统计信息
+        println!("\nEpoch {} Summary:", epoch);
+        println!("Train Loss: {:.6} (Min: {:.6}, Max: {:.6})", 
             avg_loss,
-            100. * train_accuracy,
-            100. * test_accuracy,
-            get_learning_rate(args.learning_rate, epoch, args.epochs)
+            batch_losses.iter().fold(f32::INFINITY, |a, &b| a.min(b)),
+            batch_losses.iter().fold(f32::NEG_INFINITY, |a, &b| a.max(b))
         );
-
-        // 更新学习率
-        opt.set_learning_rate(get_learning_rate(args.learning_rate, epoch, args.epochs));
+        println!("Train Accuracy: {:.2}%", 100. * train_accuracy);
+        println!("Test Accuracy: {:.2}%", 100. * test_accuracy);
+        println!("Learning Rate: {:.6}", current_lr);
 
         // 早停检查
         if test_accuracy > best_accuracy {
@@ -186,12 +233,19 @@ fn training_loop_cnn(
         } else {
             patience_counter += 1;
             if patience_counter >= args.patience {
-                println!("Early stopping triggered after {} epochs without improvement", args.patience);
+                println!("\nEarly stopping triggered after {} epochs without improvement", args.patience);
+                println!("Best accuracy achieved: {:.2}%", 100. * best_accuracy);
                 break;
             }
         }
     }
 
+    // 打印最终训练统计信息
+    println!("\nTraining Summary:");
+    println!("Best Test Accuracy: {:.2}%", 100. * best_accuracy);
+    println!("Final Learning Rate: {:.6}", learning_rates.last().unwrap_or(&args.learning_rate));
+    println!("Total Epochs Trained: {}", train_losses.len());
+    
     Ok(())
 }
 

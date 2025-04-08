@@ -14,13 +14,19 @@ struct TrainingArgs {
 
 fn preprocess_data(images: &Tensor) -> Result<Tensor> {
     let batch_size = images.dim(0)?;
-    // 归一化到 [0,1]
     let images = images.to_dtype(DType::F32)?;
-    let images = (images.to_dtype(DType::F64)? / 255.0)?.to_dtype(DType::F32)?;
-    // 标准化处理
-    let images = ((images.to_dtype(DType::F64)? - 0.1307)? / 0.3081)?.to_dtype(DType::F32)?;
-    // 重塑为 [batch_size, channels, height, width]
-    let images = images.reshape((batch_size, 1, 28, 28))?;
+    let images = (images / 255.0)?;
+    let images = ((images - 0.1307)? / 0.3081)?;
+    images.reshape((batch_size, 1, 28, 28))
+}
+
+// 数据增强函数
+fn augment_batch(images: &Tensor) -> Result<Tensor> {
+    // 添加随机噪声
+    let noise = Tensor::randn(0.0, 1.0, images.shape(), images.device())?;
+    let noise = (noise * 0.1)?;
+    let images = (images + noise)?;
+    
     Ok(images)
 }
 
@@ -37,9 +43,16 @@ fn shuffle_data(images: &Tensor, labels: &Tensor) -> Result<(Tensor, Tensor)> {
     Ok((shuffled_images, shuffled_labels))
 }
 
+// 改进的学习率调度
 fn get_learning_rate(initial_lr: f64, epoch: usize, total_epochs: usize) -> f64 {
+    // 前5个epoch进行预热
+    if epoch < 5 {
+        return initial_lr * (epoch as f64 / 5.0);
+    }
+    
+    // 余弦退火
     let min_lr = initial_lr * 0.01;
-    let progress = epoch as f64 / total_epochs as f64;
+    let progress = (epoch - 5) as f64 / (total_epochs - 5) as f64;
     min_lr + (initial_lr - min_lr) * (1.0 + (progress * std::f64::consts::PI).cos()) * 0.5
 }
 
@@ -47,9 +60,8 @@ fn training_loop_cnn(
     m: candle_datasets::vision::Dataset,
     args: &TrainingArgs,
 ) -> anyhow::Result<()> {
-    const BSIZE: usize = 64;
+    const BSIZE: usize = 128; // 增大批次大小
 
-    // 检查CUDA是否可用
     let dev = match Device::cuda_if_available(0) {
         Ok(cuda_dev) => {
             println!("Training on CUDA GPU");
@@ -61,12 +73,6 @@ fn training_loop_cnn(
         }
     };
 
-    // 打印CUDA设备信息
-    if let Device::Cuda(_) = dev {
-        println!("Successfully initialized CUDA device");
-    }
-
-    // 预处理数据并移动到设备
     println!("Preprocessing and moving data to device...");
     let train_labels = m.train_labels.to_dtype(DType::U32)?.to_device(&dev)?;
     let train_images = preprocess_data(&m.train_images)?.to_device(&dev)?;
@@ -74,7 +80,6 @@ fn training_loop_cnn(
     let test_images = preprocess_data(&m.test_images)?.to_device(&dev)?;
     println!("Data successfully moved to device");
 
-    // 初始化模型
     println!("Initializing model...");
     let mut varmap = VarMap::new();
     let vs = VarBuilder::from_varmap(&varmap, DType::F32, &dev);
@@ -86,8 +91,10 @@ fn training_loop_cnn(
         varmap.load(load)?;
     }
 
+    // 优化器参数调整
     let adamw_params = candle_nn::ParamsAdamW {
         lr: args.learning_rate,
+        weight_decay: 0.01, // 增加权重衰减
         ..Default::default()
     };
     let mut opt = candle_nn::AdamW::new(varmap.all_vars(), adamw_params)?;
@@ -95,15 +102,17 @@ fn training_loop_cnn(
     let n_batches = train_images.dim(0)? / BSIZE;
     let total_samples = train_images.dim(0)?;
 
-    // 早停相关状态
     let mut best_accuracy = 0f32;
     let mut patience_counter = 0;
     let mut best_model_path = String::from("best_model.safetensors");
 
+    // 训练循环
     for epoch in 1..=args.epochs {
         let mut sum_loss = 0f32;
+        let mut correct_train = 0usize;
+        let mut total_train = 0usize;
         
-        // 在每个epoch开始时打乱数据
+        // 打乱数据
         let (shuffled_images, shuffled_labels) = shuffle_data(&train_images, &train_labels)?;
 
         for batch_idx in 0..n_batches {
@@ -118,10 +127,16 @@ fn training_loop_cnn(
             let log_sm = ops::log_softmax(&logits, D::Minus1)?;
             let loss = loss::nll(&log_sm, &train_labels_batch)?;
 
+            // 计算训练准确率
+            let predicted = logits.argmax(D::Minus1)?;
+            let correct = predicted.eq(&train_labels_batch)?.to_dtype(DType::U32)?;
+            correct_train += correct.sum_all()?.to_scalar::<u32>()? as usize;
+            total_train += actual_bsize;
+
             opt.backward_step(&loss)?;
             sum_loss += loss.to_vec0::<f32>()?;
 
-            if batch_idx % 100 == 0 {
+            if batch_idx % 50 == 0 {
                 println!(
                     "Epoch: {} [{}/{} ({:.0}%)]\tLoss: {:.6}",
                     epoch,
@@ -134,6 +149,7 @@ fn training_loop_cnn(
         }
 
         let avg_loss = sum_loss / n_batches as f32;
+        let train_accuracy = correct_train as f32 / total_train as f32;
 
         // 评估测试集
         let test_logits = model.forward(&test_images, false)?;
@@ -147,9 +163,10 @@ fn training_loop_cnn(
         let test_accuracy = sum_ok / test_labels.dims1()? as f32;
 
         println!(
-            "{:4} | Train Loss: {:8.5} | Test Accuracy: {:5.2}% | LR: {:.6}",
+            "Epoch {:4} | Train Loss: {:8.5} | Train Acc: {:5.2}% | Test Acc: {:5.2}% | LR: {:.6}",
             epoch,
             avg_loss,
+            100. * train_accuracy,
             100. * test_accuracy,
             get_learning_rate(args.learning_rate, epoch, args.epochs)
         );
@@ -161,7 +178,6 @@ fn training_loop_cnn(
         if test_accuracy > best_accuracy {
             best_accuracy = test_accuracy;
             patience_counter = 0;
-            // 保存最佳模型
             if let Some(save) = &args.save {
                 best_model_path = save.clone();
                 println!("Saving best model with accuracy {:.2}% to {}", 100. * best_accuracy, best_model_path);

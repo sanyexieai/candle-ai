@@ -23,8 +23,9 @@ fn preprocess_data(images: &Tensor) -> Result<Tensor> {
 // 数据增强函数
 fn augment_batch(images: &Tensor) -> Result<Tensor> {
     // 添加随机噪声
-    let noise = Tensor::randn(0.0, 1.0, images.shape(), images.device())?;
-    let noise = (noise * 0.1)?;
+    let noise = Tensor::randn(0.0f32, 1.0f32, images.shape(), images.device())?;
+    let scale = Tensor::new(0.1f32, images.device())?;
+    let noise = noise.broadcast_mul(&scale)?;
     let images = (images + noise)?;
     
     Ok(images)
@@ -85,6 +86,7 @@ fn training_loop_cnn(
     let train_mean = train_images.mean_all()?.to_scalar::<f32>()?;
     let train_std = {
         let mean_tensor = Tensor::new(train_mean, &dev)?;
+        let mean_tensor = mean_tensor.broadcast_as(train_images.shape())?;
         let diff = (train_images.clone() - mean_tensor)?;
         let squared = diff.sqr()?;
         let mean_squared = squared.mean_all()?.to_scalar::<f32>()?;
@@ -95,6 +97,7 @@ fn training_loop_cnn(
     let test_mean = test_images.mean_all()?.to_scalar::<f32>()?;
     let test_std = {
         let mean_tensor = Tensor::new(test_mean, &dev)?;
+        let mean_tensor = mean_tensor.broadcast_as(test_images.shape())?;
         let diff = (test_images.clone() - mean_tensor)?;
         let squared = diff.sqr()?;
         let mean_squared = squared.mean_all()?.to_scalar::<f32>()?;

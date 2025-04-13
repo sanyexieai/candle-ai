@@ -22,13 +22,12 @@ fn preprocess_data(images: &Tensor) -> Result<Tensor> {
 
 // 数据增强函数
 fn augment_batch(images: &Tensor) -> Result<Tensor> {
-    // 添加随机噪声
-    let noise = Tensor::randn(0.0f32, 1.0f32, images.shape(), images.device())?;
-    let scale = Tensor::new(0.1f32, images.device())?;
-    let noise = noise.broadcast_mul(&scale)?;
-    let images = (images + noise)?;
-    
-    Ok(images)
+    // 移除数据增强或减小噪声强度
+    // let noise = Tensor::randn(0.0f32, 1.0f32, images.shape(), images.device())?;
+    // let scale = Tensor::new(0.01f32, images.device())?;  // 如果保留，减小噪声强度
+    // let noise = noise.broadcast_mul(&scale)?;
+    // let images = (images + noise)?;
+    Ok(images.clone())
 }
 
 fn shuffle_data(images: &Tensor, labels: &Tensor) -> Result<(Tensor, Tensor)> {
@@ -46,22 +45,14 @@ fn shuffle_data(images: &Tensor, labels: &Tensor) -> Result<(Tensor, Tensor)> {
 
 // 改进的学习率调度
 fn get_learning_rate(initial_lr: f64, epoch: usize, total_epochs: usize) -> f64 {
-    // 前5个epoch进行预热
-    if epoch < 5 {
-        return initial_lr * (epoch as f64 / 5.0);
-    }
-    
-    // 余弦退火
-    let min_lr = initial_lr * 0.01;
-    let progress = (epoch - 5) as f64 / (total_epochs - 5) as f64;
-    min_lr + (initial_lr - min_lr) * (1.0 + (progress * std::f64::consts::PI).cos()) * 0.5
+    initial_lr  // 保持固定学习率
 }
 
 fn training_loop_cnn(
     m: candle_datasets::vision::Dataset,
     args: &TrainingArgs,
 ) -> anyhow::Result<()> {
-    const BSIZE: usize = 128; // 增大批次大小
+    const BSIZE: usize = 64;  // 与 Python 版本一致
 
     let dev = match Device::cuda_if_available(0) {
         Ok(cuda_dev) => {
@@ -118,8 +109,8 @@ fn training_loop_cnn(
 
     // 优化器参数调整
     let adamw_params = candle_nn::ParamsAdamW {
-        lr: args.learning_rate,
-        weight_decay: 0.01, // 增加权重衰减
+        lr: 0.001,  // 与 Python 版本一致
+        weight_decay: 0.0001,  // 降低权重衰减
         beta1: 0.9,
         beta2: 0.999,
         eps: 1e-8,
@@ -266,7 +257,7 @@ struct Args {
     #[arg(long)]
     load: Option<String>,
 
-    #[arg(long, default_value = "data/MNIST/raw")]
+    #[arg(long, default_value = "./data/MNIST/raw")]
     local_mnist: Option<String>,
 
     #[arg(long, default_value_t = 5)]

@@ -45,16 +45,30 @@ def predict(image_path, model, device):
     print(f"Tensor[dims {list(output.shape)}; f32]")
     print(f"Predicted Digit - {prediction.item()}")
     print(f"\"{image_path}\": Predicted Digit - {prediction.item()}")
+    
+    return {
+        'prediction': prediction.item(),
+        'processing_time': {
+            'total': time.time() - start,
+            'loading': time.time() - load_start,
+            'preprocessing': time.time() - preprocess_start,
+            'inference': time.time() - inference_start
+        }
+    }
 
-def main():
+def load_model(model_path="mnist_model.safetensors"):
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = Net().to(device)
+    model_weights = load_file(model_path)
+    model.load_state_dict(model_weights)
+    model.eval()
+    return model, device
+
+if __name__ == '__main__':
     start_total = time.time()
     
     # 模型加载
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = Net().to(device)
-    model_weights = load_file("mnist_model.safetensors")
-    model.load_state_dict(model_weights)
-    model.eval()
+    model, device = load_model()
     print(f"Model loading time: {time.time() - start_total:.4f}s")
     
     # 预测循环
@@ -63,6 +77,3 @@ def main():
             predict(filename, model, device)
     
     print(f"Total execution time: {time.time() - start_total:.4f}s")
-
-if __name__ == '__main__':
-    main()
